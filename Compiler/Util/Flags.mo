@@ -513,7 +513,10 @@ constant DebugFlag NF_UNITCHECK = DEBUG_FLAG(169, "frontEndUnitCheck", false,
   Util.gettext("Checks the consistency of units in equation."));
 constant DebugFlag DISABLE_COLORING = DEBUG_FLAG(170, "disableColoring", false,
   Util.gettext("Disables coloring algorithm while spasity detection."));
-
+constant DebugFlag INDEX_REDUCTION = DEBUG_FLAG(171, "indexReduction", false,
+  Util.gettext("Dumps some information about the index reduction."));
+constant DebugFlag INDEX_REDUCTION_V = DEBUG_FLAG(172, "indexReductionAll", false,
+  Util.gettext("Dumps all information about the index reduction."));
 
 // This is a list of all debug flags, to keep track of which flags are used. A
 // flag can not be used unless it's in this list, and the list is checked at
@@ -690,7 +693,9 @@ constant list<DebugFlag> allDebugFlags = {
   PARTITION_INITIALIZATION,
   EVAL_PARAM_DUMP,
   NF_UNITCHECK,
-  DISABLE_COLORING
+  DISABLE_COLORING,
+  INDEX_REDUCTION,
+  INDEX_REDUCTION_V
 };
 
 public
@@ -802,7 +807,7 @@ constant ConfigFlag CHEAPMATCHING_ALGORITHM = CONFIG_FLAG(13, "cheapmatchingAlgo
     Util.gettext("Sets the cheap matching algorithm to use. A cheap matching algorithm gives a jump start matching by heuristics."));
 
 constant ConfigFlag MATCHING_ALGORITHM = CONFIG_FLAG(14, "matchingAlgorithm",
-  NONE(), EXTERNAL(), STRING_FLAG("PFPlusExt"),
+  NONE(), EXTERNAL(), STRING_FLAG("BB"),
   SOME(STRING_DESC_OPTION({
     ("BFSB", Util.gettext("Breadth First Search based algorithm.")),
     ("DFSB", Util.gettext("Depth First Search based algorithm.")),
@@ -826,12 +831,13 @@ constant ConfigFlag MATCHING_ALGORITHM = CONFIG_FLAG(14, "matchingAlgorithm",
     Util.gettext("Sets the matching algorithm to use. See --help=optmodules for more info."));
 
 constant ConfigFlag INDEX_REDUCTION_METHOD = CONFIG_FLAG(15, "indexReductionMethod",
-  NONE(), EXTERNAL(), STRING_FLAG("dynamicStateSelection"),
+  NONE(), EXTERNAL(), STRING_FLAG("BB"),
   SOME(STRING_DESC_OPTION({
     ("none", Util.gettext("Skip index reduction")),
     ("uode", Util.gettext("Use the underlying ODE without the constraints.")),
     ("dynamicStateSelection", Util.gettext("Simple index reduction method, select (dynamic) dummy states based on analysis of the system.")),
-    ("dummyDerivatives", Util.gettext("Simple index reduction method, select (static) dummy states based on heuristic."))
+    ("dummyDerivatives", Util.gettext("Simple index reduction method, select (static) dummy states based on heuristic.")),
+    ("BB", Util.gettext("New index reduction method, prototype select (static) dummy states based on heuristic."))
     })),
     Util.gettext("Sets the index reduction method to use. See --help=optmodules for more info."));
 

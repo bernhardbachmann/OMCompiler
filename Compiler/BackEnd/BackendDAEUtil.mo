@@ -7249,6 +7249,7 @@ algorithm
  allIndexReductionMethods := {(IndexReduction.failIfIndexReduction, "none", IndexReduction.noStateDeselection, "none"),
                               (IndexReduction.pantelidesIndexReduction, "Pantelides", IndexReduction.noStateDeselection, "uode"),
                               (IndexReduction.pantelidesIndexReduction, "Pantelides", IndexReduction.dynamicStateSelection, "dynamicStateSelection"),
+                              (IndexReduction.pantelidesIndexReduction, "Pantelides", IndexReduction.dynamicStateSelection, "BB"),
                               (IndexReduction.pantelidesIndexReduction, "Pantelides", IndexReduction.dynamicStateSelection, "dummyDerivatives")};
  strIndexReductionMethod := getIndexReductionMethodString();
  strIndexReductionMethod := Util.getOptionOrDefault(ostrIndexReductionMethod,strIndexReductionMethod);

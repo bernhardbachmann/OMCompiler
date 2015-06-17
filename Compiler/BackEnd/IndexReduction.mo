@@ -1601,6 +1601,13 @@ algorithm
   for tpl in iTplLst loop
     (level,_,nStateCandidates,nUnassignedEquations,stateCandidates,cEqnsLst,otherVars,oEqnLst) := tpl;
     rang := nStateCandidates - nUnassignedEquations;
+    if Flags.isSet(Flags.INDEX_REDUCTION) then
+      print("\n------------------ Level " + intString(level) + "------------------\n");
+      BackendDump.dumpVarList(stateCandidates,"State candidates");
+      BackendDump.dumpEquationList(cEqnsLst,"Equations:");
+      BackendDump.dumpVarList(otherVars,"Other variables");
+      BackendDump.dumpEquationList(oEqnLst,"Other equations:");
+    end if;
     b := intGt(rang,1);
     // generate Set Vars
     (_,crset,setVars,crA,aVars,tp,crJ,varJ) := getSetVars(oSetIndex,rang,nStateCandidates,nUnassignedEquations,level);
@@ -2842,6 +2849,15 @@ algorithm
     end if;
   end for;
 end removeFirstOrgEqns;
+
+public function sortStateCandidatesVarList
+"wrapper"
+  input list<BackendDAE.Var> inVars;
+  input BackendDAE.Variables allVars;
+  input Option<BackendDAE.IncidenceMatrix> m;
+  output list<BackendDAE.Var> outStates = BackendVariable.varList(sortStateCandidatesVars(BackendVariable.listVar(inVars),allVars,m));
+end sortStateCandidatesVarList;
+
 
 protected function sortStateCandidatesVars
 "author: Frenkel TUD 2012-08

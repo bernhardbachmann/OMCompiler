@@ -49,10 +49,13 @@ protected import BackendDump;
 protected import BackendEquation;
 protected import BackendVariable;
 protected import ClockIndexes;
+protected import ComponentReference;
 protected import Config;
 protected import DAEUtil;
 protected import Debug;
+protected import Differentiate;
 protected import DumpGraphML;
+protected import Expression;
 protected import Error;
 protected import Flags;
 protected import IndexReduction;
@@ -125,12 +128,14 @@ protected
   Integer i;
   Boolean success = true;
   BackendDAE.IncidenceMatrix m;
-  Integer nVars, nEqns, j;
+  Integer nVars, nEqns, j, stateSetNumber=0;
   array<Integer> ass1, ass2;
   array<Boolean> eMark, vMark;
   BackendDAE.EquationArray eqns;
   BackendDAE.Variables vars;
   list<Integer> mEqns;
+  array<Integer> mEqnArray;
+  array<Integer> stateSets;
 algorithm
   //BackendDAE.EQSYSTEM(m=SOME(m), matching=BackendDAE.MATCHING(ass1=ass1, ass2=ass2)) := outSys;
   BackendDAE.EQSYSTEM(m=SOME(m)) := outSys;
@@ -142,6 +147,7 @@ algorithm
   //if clearMatching then
   ass2 := arrayCreate(nEqns, -1);
   ass1 := arrayCreate(nVars, -1);
+  stateSets := arrayCreate(nVars, 0);
   //BBCheapMatching(nEqns, m, ass1, ass2);
   //end if;
   vMark := arrayCreate(nVars, false);
@@ -156,20 +162,19 @@ algorithm
       Array.setRange(1, nEqns, eMark, false);
       success := BBPathFound(i, m, eMark, vMark, ass1, ass2);
       if not success then
-        mEqns := {};
-        for j in 1:nEqns loop
-          if eMark[j] then
-            mEqns:=j::mEqns;
-          end if;
-        end for;
-        (_, i, outSys, outShared, ass1, ass2, outArg) := sssHandler({mEqns}, i, outSys, outShared, ass1, ass2, outArg);
+        stateSetNumber := stateSetNumber+1;
+        mEqns := list(j for j guard eMark[j] in 1:nEqns);
+        mEqnArray := listArray(mEqns);
+        (_, stateSets, outSys, outShared):=PrototypeIndexReduction(mEqnArray, stateSets, stateSetNumber, outSys, outShared);
+        //(_, i, outSys, outShared, ass1, ass2, outArg) := sssHandler({mEqns}, i, outSys, outShared, ass1, ass2, outArg);
         BackendDAE.EQSYSTEM(m=SOME(m)) := outSys;
-        //nEqns := BackendDAEUtil.systemSize(outSys);
-        //nVars := BackendVariable.daenumVariables(outSys);
-        //ass1 := assignmentsArrayExpand(ass1, nVars, arrayLength(ass1), -1);
-        //ass2 := assignmentsArrayExpand(ass2, nEqns, arrayLength(ass2), -1);
-        //vMark := assignmentsArrayBooleanExpand(vMark, nVars, arrayLength(vMark), false);
-        //eMark := assignmentsArrayBooleanExpand(eMark, nEqns, arrayLength(eMark), false);
+        nEqns := BackendDAEUtil.systemSize(outSys);
+        nVars := BackendVariable.daenumVariables(outSys);
+        ass1 := assignmentsArrayExpand(ass1, nVars, arrayLength(ass1), -1);
+        ass2 := assignmentsArrayExpand(ass2, nEqns, arrayLength(ass2), -1);
+        //stateSets := assignmentsArrayExpand(stateSets, nVars, arrayLength(stateSets), 0);
+        vMark := assignmentsArrayBooleanExpand(vMark, nVars, arrayLength(vMark), false);
+        eMark := assignmentsArrayBooleanExpand(eMark, nEqns, arrayLength(eMark), false);
         success := true;
         i := i-1;
       end if;
@@ -182,6 +187,138 @@ algorithm
     print("\nSingular System!!!\n");
   end if;
 end BBMatching;
+
+protected function PrototypeIndexReduction
+  input array<Integer> mEqns;
+  input array<Integer> inStateSets;
+  input Integer stateSetNumber;
+  input BackendDAE.EqSystem inSys;
+  input BackendDAE.Shared inShared;
+  output Integer i=1;
+  output array<Integer> outStateSets = inStateSets;
+  output BackendDAE.EqSystem outSys=inSys;
+  output BackendDAE.Shared outShared=inShared;
+protected
+  BackendDAE.Equation eqn, diffEqn;
+  BackendDAE.EquationArray eqns;
+  BackendDAE.Variables vars, knvars;
+  BackendDAE.Var var;
+  BackendDAE.IncidenceMatrix m;
+  BackendDAE.IncidenceMatrixT mT;
+  list<Integer> stateCands={};
+  Integer n,k,kk,dummyIndx,nEqns;
+  BackendDAE.StateSets stateSets;
+  BackendDAE.BaseClockPartitionKind partitionKind;
+  DAE.FunctionTree funcs;
+  DAE.ComponentRef cr, cr1;
+  list<DAE.ComponentRef> crlst;
+  DAE.Exp derVar;
+algorithm
+  n := arrayLength(mEqns);
+  //i := mEqns[n];
+  BackendDAE.EQSYSTEM(orderedVars=vars,orderedEqs=eqns,m=SOME(m),mT=SOME(mT),stateSets=stateSets,partitionKind=partitionKind):=outSys;
+
+  knvars := BackendDAEUtil.getknvars(outShared);
+  funcs := BackendDAEUtil.getFunctions(outShared);
+
+  print("Before handling of Singularity! \n");
+  BackendDump.printVariables(vars);
+  BackendDump.printEquationArray(eqns);
+  BackendDump.dumpIncidenceMatrix(m);
+  BackendDump.dumpIncidenceMatrixT(mT);
+  for j in 1:n loop
+    for k in m[mEqns[j]] loop
+      if (k<0) then
+        kk := intAbs(k);
+        if outStateSets[kk] == 0 then
+          stateCands := kk::stateCands;
+          outStateSets[kk] := stateSetNumber;
+        end if;
+      end if;
+    end for;
+    eqn := BackendEquation.equationNth1(eqns,mEqns[j]);
+    if not BackendEquation.isDifferentiated(eqn) then
+      (diffEqn, outShared) := Differentiate.differentiateEquationTime(eqn, vars, outShared);
+      crlst := BackendEquation.equationUnknownCrefs({diffEqn}, vars, knvars);
+      for cr in crlst loop
+        var := BackendVariable.makeVar(cr);
+        vars := BackendVariable.addVar(var, vars);
+      end for;
+      eqn  := BackendEquation.markDifferentiated(eqn);
+      eqns := BackendEquation.setAtIndex(eqns,mEqns[j],eqn);
+      eqns := BackendEquation.addEquation(diffEqn,eqns);
+      print("Differentiate equation " +intString(j) + " :: " + intString(n) + "\n");
+      BackendDump.printEquation(eqn);
+      BackendDump.printEquation(diffEqn);
+    end if;
+  end for;
+  print("State Candidates! \n");
+  for j in stateCands loop
+     print(intString(j) + "\n");
+  end for;
+  dummyIndx := List.first(stateCands);
+  vars := BackendVariable.setVarKindForVar(dummyIndx,BackendDAE.DUMMY_STATE(),vars);
+  BackendDAE.VAR(varName=cr) := BackendVariable.getVarAt(vars, dummyIndx);
+  cr1 := ComponentReference.crefPrefixDer(cr);
+  derVar := Expression.crefExp(cr1);
+  var := BackendVariable.makeVar(cr1);
+  var := BackendVariable.setVarKind(var, BackendDAE.DUMMY_DER());
+  vars := BackendVariable.addVar(var, vars);
+
+
+  outSys := BackendDAE.EQSYSTEM(vars,eqns,NONE(),NONE(),BackendDAE.NO_MATCHING(),stateSets,partitionKind);
+  (_, m, mT) := BackendDAEUtil.getIncidenceMatrix(outSys, BackendDAE.NORMAL(), SOME(funcs));
+  BackendDAE.EQUATION_ARRAY(size=nEqns) := eqns;
+  for k in 1:nEqns loop
+    if listMember(dummyIndx,m[k]) then
+      eqn := BackendEquation.equationNth1(eqns,k);
+      //BackendDump.printEquation(eqn);
+      eqn := BackendEquation.traverseExpsOfEquation(eqn, traverseExpBottomUp, (cr, derVar));
+      eqns := BackendEquation.setAtIndex(eqns,k,eqn);
+      //BackendDump.printEquation(eqn);
+    end if;
+  end for;
+  outSys := BackendDAE.EQSYSTEM(vars,eqns,NONE(),NONE(),BackendDAE.NO_MATCHING(),stateSets,partitionKind);
+  (_, m, mT) := BackendDAEUtil.getIncidenceMatrix(outSys, BackendDAE.NORMAL(), SOME(funcs));
+  print("After handling of Singularity! \n");
+  BackendDump.printVariables(vars);
+  BackendDump.printEquationArray(eqns);
+  BackendDump.dumpIncidenceMatrix(m);
+  BackendDump.dumpIncidenceMatrixT(mT);
+
+  outSys := BackendDAE.EQSYSTEM(vars,eqns,SOME(m),SOME(mT),BackendDAE.NO_MATCHING(),stateSets,partitionKind);
+end PrototypeIndexReduction;
+
+protected function traverseExpBottomUp "BB,
+traverse top down, when inserting
+"
+  input DAE.Exp inExp;
+  input tuple<DAE.ComponentRef,DAE.Exp> inTpl;
+  output DAE.Exp outExp;
+  output tuple<DAE.ComponentRef,DAE.Exp> outTpl=inTpl;
+algorithm
+  (outExp, _) := Expression.traverseExpBottomUp(inExp, introDerAlias, inTpl);
+end traverseExpBottomUp;
+
+protected function introDerAlias "
+  Help function to e.g. traverserintroduceDerAliasExp"
+  input DAE.Exp inExp;
+  input tuple<DAE.ComponentRef,DAE.Exp> inTpl;
+  output DAE.Exp outExp;
+  output tuple<DAE.ComponentRef,DAE.Exp> outTpl=inTpl;
+algorithm
+  outExp := match (inExp, inTpl)
+    local
+      DAE.ComponentRef cr,cref;
+      DAE.Exp e;
+
+  case (DAE.CALL(path=Absyn.IDENT(name="der"), expLst={DAE.CREF(componentRef=cr)}), (cref, e))
+  guard ComponentReference.crefEqual(cr,cref)
+    then e;
+
+    else inExp;
+  end match;
+end introDerAlias;
 
 protected function BBPathFound
   input Integer i;

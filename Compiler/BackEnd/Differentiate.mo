@@ -1101,7 +1101,7 @@ algorithm
         //print("\nExp-Cref\nDUMMY_STATE: " + se1);
 
         ({var},_) = BackendVariable.getVar(cr, timevars);
-        true = BackendVariable.isDummyStateVar(var);
+        true = BackendVariable.isDummyStateVar(var) or BackendVariable.isDummyDerVar(var);
         cr = ComponentReference.crefPrefixDer(cr);
         res = Expression.makeCrefExp(cr, tp);
 
@@ -1116,8 +1116,7 @@ algorithm
         //se1 = ExpressionDump.printExpStr(e);
         //print("\nExp-Cref\n all other vars: " + se1);
 
-        //({BackendDAE.VAR(varKind = BackendDAE.STATE(index=_))},_) = BackendVariable.getVar(cr, timevars);
-        ({_},_) = BackendVariable.getVar(cr, timevars);
+        ({BackendDAE.VAR(varKind = BackendDAE.STATE(index=_))},_) = BackendVariable.getVar(cr, timevars);
         res = DAE.CALL(Absyn.IDENT("der"),{e},DAE.CALL_ATTR(tp,false,true,false,false,DAE.NO_INLINE(),DAE.NO_TAIL()));
 
         //se1 = ExpressionDump.printExpStr(res);
@@ -1125,6 +1124,20 @@ algorithm
       then
         (res, inFunctionTree);
 
+    // Continuous-time variables (and for shared eq-systems, also unknown variables: keep them as-they-are)
+    case ((e as DAE.CREF(componentRef = cr,ty = tp)), _, BackendDAE.DIFFINPUTDATA(dependenentVars=SOME(timevars)), BackendDAE.DIFFERENTIATION_TIME(), _)
+      equation
+        //se1 = ExpressionDump.printExpStr(e);
+        //print("\nExp-Cref\n all other vars: " + se1);
+
+        ({_},_) = BackendVariable.getVar(cr, timevars);
+        cr = ComponentReference.crefPrefixDer(cr);
+        res = Expression.makeCrefExp(cr, tp);
+
+        //se1 = ExpressionDump.printExpStr(res);
+        //print("\nresults to exp: " + se1);
+      then
+        (res, inFunctionTree);
     //
     // This part contains special rules for DIFFERENTIATION_FUNCTION()
     //
@@ -1322,6 +1335,16 @@ algorithm
     case (e as DAE.CALL(path=Absyn.IDENT(name = "pre")), _, _, _, _)
       then
         (e,  inFunctionTree);
+
+    case (DAE.CALL(path = path as Absyn.IDENT(name = "der"),expLst = {e},attr=attr), _, _, BackendDAE.DIFFERENTIATION_TIME(), _)
+      equation
+        cr = Expression.expCref(e);
+        tp = Expression.typeof(e);
+        cr = ComponentReference.crefPrefixDer(cr);
+        cr = ComponentReference.crefPrefixDer(cr);
+        res = Expression.makeCrefExp(cr, tp);
+      then
+        (res,  inFunctionTree);
 
     case (DAE.CALL(path = path as Absyn.IDENT(name = "der"),expLst = {e},attr=attr), _, _, BackendDAE.DIFFERENTIATION_TIME(), _)
       then

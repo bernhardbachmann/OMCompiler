@@ -1111,7 +1111,7 @@ algorithm
 
     // Continuous-time variables (and for shared eq-systems, also unknown variables: keep them as-they-are)
     case ((e as DAE.CREF(componentRef = cr,ty = tp)), _, BackendDAE.DIFFINPUTDATA(dependenentVars=SOME(timevars)), BackendDAE.DIFFERENTIATION_TIME(), _)
-    guard not stringEqual(Config.getMatchingAlgorithm(),"BB")
+    guard not stringEqual(Config.getIndexReductionMethod(),"BB")
       equation
         //se1 = ExpressionDump.printExpStr(e);
         //print("\nExp-Cref\n all other vars: " + se1);
@@ -1128,7 +1128,7 @@ algorithm
 
     // Continuous-time variables (and for shared eq-systems, also unknown variables: keep them as-they-are)
     case ((e as DAE.CREF(componentRef = cr,ty = tp)), _, BackendDAE.DIFFINPUTDATA(dependenentVars=SOME(timevars)), BackendDAE.DIFFERENTIATION_TIME(), _)
-    guard stringEqual(Config.getMatchingAlgorithm(),"BB")
+    guard stringEqual(Config.getIndexReductionMethod(),"BB")
       equation
         //se1 = ExpressionDump.printExpStr(e);
         //print("\nExp-Cref\n all other vars: " + se1);
@@ -1143,7 +1143,7 @@ algorithm
 
     // Continuous-time variables (and for shared eq-systems, also unknown variables: keep them as-they-are)
     case ((e as DAE.CREF(componentRef = cr,ty = tp)), _, BackendDAE.DIFFINPUTDATA(dependenentVars=SOME(timevars)), BackendDAE.DIFFERENTIATION_TIME(), _)
-    guard stringEqual(Config.getMatchingAlgorithm(),"BB")
+    guard stringEqual(Config.getIndexReductionMethod(),"BB")
       equation
         //se1 = ExpressionDump.printExpStr(e);
         //print("\nExp-Cref\n all other vars: " + se1);
@@ -1355,7 +1355,7 @@ algorithm
         (e,  inFunctionTree);
 
     case (DAE.CALL(path = path as Absyn.IDENT(name = "der"),expLst = {e},attr=attr), _, _, BackendDAE.DIFFERENTIATION_TIME(), _)
-      guard stringEqual(Config.getMatchingAlgorithm(),"BB")
+      guard stringEqual(Config.getIndexReductionMethod(),"BB")
       equation
         cr = Expression.expCref(e);
         tp = Expression.typeof(e);

@@ -167,8 +167,8 @@ algorithm
         stateSetNumber := stateSetNumber+1;
         mEqns := list(j for j guard eMark[j] in 1:nEqns);
         mEqnArray := listArray(mEqns);
-        (_, stateSets, numberOfFreeStates, outSys, outShared):=PrototypeIndexReduction(mEqnArray, stateSets, stateSetNumber, numberOfFreeStates, outSys, outShared);
-        //(_, i, outSys, outShared, ass1, ass2, outArg) := sssHandler({mEqns}, i, outSys, outShared, ass1, ass2, outArg);
+        //(_, stateSets, numberOfFreeStates, outSys, outShared):=PrototypeIndexReduction(mEqnArray, stateSets, stateSetNumber, numberOfFreeStates, outSys, outShared);
+        (_, i, outSys, outShared, ass1, ass2, outArg) := sssHandler({mEqns}, i, outSys, outShared, ass1, ass2, outArg);
         BackendDAE.EQSYSTEM(m=SOME(m)) := outSys;
         nEqns := BackendDAEUtil.systemSize(outSys);
         nVars := BackendVariable.daenumVariables(outSys);

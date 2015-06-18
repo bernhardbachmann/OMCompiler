@@ -733,11 +733,12 @@ constant ConfigFlag MATCHING_ALGORITHM = CONFIG_FLAG(14, "matchingAlgorithm",
     Util.gettext("Sets the matching algorithm to use. See --help=optmodules for more info."));
 
 constant ConfigFlag INDEX_REDUCTION_METHOD = CONFIG_FLAG(15, "indexReductionMethod",
-  NONE(), EXTERNAL(), STRING_FLAG("dynamicStateSelection"),
+  NONE(), EXTERNAL(), STRING_FLAG("BB"),
   SOME(STRING_DESC_OPTION({
     ("uode", Util.gettext("Use the underlying ODE without the constraints.")),
     ("dynamicStateSelection", Util.gettext("Simple index reduction method, select (dynamic) dummy states based on analysis of the system.")),
-    ("dummyDerivatives", Util.gettext("Simple index reduction method, select (static) dummy states based on heuristic."))
+    ("dummyDerivatives", Util.gettext("Simple index reduction method, select (static) dummy states based on heuristic.")),
+    ("BB", Util.gettext("New index reduction method, prototype select (static) dummy states based on heuristic."))
     })),
     Util.gettext("Sets the index reduction method to use. See --help=optmodules for more info."));
 

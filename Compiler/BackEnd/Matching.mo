@@ -172,7 +172,7 @@ algorithm
         nVars := BackendVariable.daenumVariables(outSys);
         ass1 := assignmentsArrayExpand(ass1, nVars, arrayLength(ass1), -1);
         ass2 := assignmentsArrayExpand(ass2, nEqns, arrayLength(ass2), -1);
-        //stateSets := assignmentsArrayExpand(stateSets, nVars, arrayLength(stateSets), 0);
+        stateSets := assignmentsArrayExpand(stateSets, nVars, arrayLength(stateSets), 0);
         vMark := assignmentsArrayBooleanExpand(vMark, nVars, arrayLength(vMark), false);
         eMark := assignmentsArrayBooleanExpand(eMark, nEqns, arrayLength(eMark), false);
         success := true;
@@ -181,6 +181,13 @@ algorithm
     end if;
     i := i+1;
   end while;
+  BackendDAE.EQSYSTEM(orderedVars=vars) := outSys;
+  for i in 1:nVars loop
+    if stateSets[i] <> 0 then
+      print(intString(i) + ": " + intString(stateSets[i]) + " : ");
+      BackendDump.printVar(BackendVariable.getVarAt(vars,i));
+    end if;
+  end for;
   if success then
     outSys := BackendDAEUtil.setEqSystemMatching(outSys, BackendDAE.MATCHING(ass1, ass2, {}));
   else
@@ -205,7 +212,8 @@ protected
   BackendDAE.Var var;
   BackendDAE.IncidenceMatrix m;
   BackendDAE.IncidenceMatrixT mT;
-  list<Integer> stateCands={};
+  list<Integer> stateCands={}, restCands={};
+  list<BackendDAE.Var> stateCandVars={}, restCandVars={};
   Integer n,k,kk,dummyIndx,nEqns;
   BackendDAE.StateSets stateSets;
   BackendDAE.BaseClockPartitionKind partitionKind;
@@ -222,10 +230,10 @@ algorithm
   funcs := BackendDAEUtil.getFunctions(outShared);
 
   print("Before handling of Singularity! \n");
-  BackendDump.printVariables(vars);
-  BackendDump.printEquationArray(eqns);
+  //BackendDump.printVariables(vars);
+  //BackendDump.printEquationArray(eqns);
   BackendDump.dumpIncidenceMatrix(m);
-  BackendDump.dumpIncidenceMatrixT(mT);
+  //BackendDump.dumpIncidenceMatrixT(mT);
   for j in 1:n loop
     for k in m[mEqns[j]] loop
       if (k<0) then
@@ -233,10 +241,15 @@ algorithm
         if outStateSets[kk] == 0 then
           stateCands := kk::stateCands;
           outStateSets[kk] := stateSetNumber;
+        else
+          if outStateSets[kk] <> stateSetNumber then
+            restCands := kk::restCands;
+          end if;
         end if;
       end if;
     end for;
     eqn := BackendEquation.equationNth1(eqns,mEqns[j]);
+    print("Differentiate equation " + intString(j) + " (" + intString(mEqns[j]) + "):: " + intString(n) + "\n");
     if not BackendEquation.isDifferentiated(eqn) then
       (diffEqn, outShared) := Differentiate.differentiateEquationTime(eqn, vars, outShared);
       crlst := BackendEquation.equationUnknownCrefs({diffEqn}, vars, knvars);
@@ -247,16 +260,23 @@ algorithm
       eqn  := BackendEquation.markDifferentiated(eqn);
       eqns := BackendEquation.setAtIndex(eqns,mEqns[j],eqn);
       eqns := BackendEquation.addEquation(diffEqn,eqns);
-      print("Differentiate equation " +intString(j) + " :: " + intString(n) + "\n");
       BackendDump.printEquation(eqn);
       BackendDump.printEquation(diffEqn);
     end if;
   end for;
+  stateCandVars := List.map1(stateCands, BackendVariable.getVarAtIndexFirst, vars);
+  restCandVars := List.map1(restCands, BackendVariable.getVarAtIndexFirst, vars);
+  stateCands := listReverse(BackendVariable.getVarIndexFromVars(IndexReduction.sortStateCandidatesVarList(stateCandVars, vars, SOME(m)),vars));
+  restCands := listReverse(BackendVariable.getVarIndexFromVars(IndexReduction.sortStateCandidatesVarList(restCandVars, vars, SOME(m)),vars));
   print("State Candidates! \n");
   for j in stateCands loop
      print(intString(j) + "\n");
   end for;
-  dummyIndx := List.first(stateCands);
+  print("Rest of State Candidates! \n");
+  for j in restCands loop
+     print(intString(j) + "\n");
+  end for;
+  dummyIndx := if not listEmpty(stateCands) then List.first(stateCands) else List.first(restCands);
   vars := BackendVariable.setVarKindForVar(dummyIndx,BackendDAE.DUMMY_STATE(),vars);
   BackendDAE.VAR(varName=cr) := BackendVariable.getVarAt(vars, dummyIndx);
   cr1 := ComponentReference.crefPrefixDer(cr);
@@ -281,10 +301,10 @@ algorithm
   outSys := BackendDAE.EQSYSTEM(vars,eqns,NONE(),NONE(),BackendDAE.NO_MATCHING(),stateSets,partitionKind);
   (_, m, mT) := BackendDAEUtil.getIncidenceMatrix(outSys, BackendDAE.NORMAL(), SOME(funcs));
   print("After handling of Singularity! \n");
-  BackendDump.printVariables(vars);
-  BackendDump.printEquationArray(eqns);
+  //BackendDump.printVariables(vars);
+  //BackendDump.printEquationArray(eqns);
   BackendDump.dumpIncidenceMatrix(m);
-  BackendDump.dumpIncidenceMatrixT(mT);
+  //BackendDump.dumpIncidenceMatrixT(mT);
 
   outSys := BackendDAE.EQSYSTEM(vars,eqns,SOME(m),SOME(mT),BackendDAE.NO_MATCHING(),stateSets,partitionKind);
 end PrototypeIndexReduction;

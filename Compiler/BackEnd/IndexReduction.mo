@@ -2837,6 +2837,15 @@ algorithm
 
 end getFirstOrgEqns;
 
+public function sortStateCandidatesVarList
+"wrapper"
+  input list<BackendDAE.Var> inVars;
+  input BackendDAE.Variables allVars;
+  input Option<BackendDAE.IncidenceMatrix> m;
+  output list<BackendDAE.Var> outStates = BackendVariable.varList(sortStateCandidatesVars(BackendVariable.listVar(inVars),allVars,m));
+end sortStateCandidatesVarList;
+
+
 protected function sortStateCandidatesVars
 "author: Frenkel TUD 2012-08
   sort the state candidates"

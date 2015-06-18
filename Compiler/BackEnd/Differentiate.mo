@@ -1100,7 +1100,7 @@ algorithm
         //print("\nExp-Cref\nDUMMY_STATE: " + se1);
 
         ({var},_) = BackendVariable.getVar(cr, timevars);
-        true = BackendVariable.isDummyStateVar(var) or BackendVariable.isDummyDerVar(var);
+        true = BackendVariable.isDummyStateVar(var);
         cr = ComponentReference.crefPrefixDer(cr);
         res = Expression.makeCrefExp(cr, tp);
 
@@ -1117,6 +1117,7 @@ algorithm
         false = stringEqual(Config.getMatchingAlgorithm(),"BB");
 
         //({BackendDAE.VAR(varKind = BackendDAE.STATE(index=_))},_) = BackendVariable.getVar(cr, timevars);
+        ({_},_) = BackendVariable.getVar(cr, timevars);
         res = DAE.CALL(Absyn.IDENT("der"),{e},DAE.CALL_ATTR(tp,false,true,false,false,DAE.NO_INLINE(),DAE.NO_TAIL()));
 
         //se1 = ExpressionDump.printExpStr(res);

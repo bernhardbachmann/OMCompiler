@@ -709,7 +709,7 @@ constant ConfigFlag CHEAPMATCHING_ALGORITHM = CONFIG_FLAG(13, "cheapmatchingAlgo
     Util.gettext("Sets the cheap matching algorithm to use. A cheap matching algorithm gives a jump start matching by heuristics."));
 
 constant ConfigFlag MATCHING_ALGORITHM = CONFIG_FLAG(14, "matchingAlgorithm",
-  NONE(), EXTERNAL(), STRING_FLAG("PFPlusExt"),
+  NONE(), EXTERNAL(), STRING_FLAG("BB"),
   SOME(STRING_DESC_OPTION({
     ("BFSB", Util.gettext("Breadth First Search based algorithm.")),
     ("DFSB", Util.gettext("Depth First Search based algorithm.")),

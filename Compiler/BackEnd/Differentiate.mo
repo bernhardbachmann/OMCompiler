@@ -1100,7 +1100,7 @@ algorithm
         //print("\nExp-Cref\nDUMMY_STATE: " + se1);
 
         ({var},_) = BackendVariable.getVar(cr, timevars);
-        true = BackendVariable.isDummyStateVar(var);
+        true = BackendVariable.isDummyStateVar(var) or BackendVariable.isDummyDerVar(var);
         cr = ComponentReference.crefPrefixDer(cr);
         res = Expression.makeCrefExp(cr, tp);
 
@@ -1111,10 +1111,10 @@ algorithm
 
     // Continuous-time variables (and for shared eq-systems, also unknown variables: keep them as-they-are)
     case ((e as DAE.CREF(componentRef = cr,ty = tp)), _, BackendDAE.DIFFINPUTDATA(dependenentVars=SOME(timevars)), BackendDAE.DIFFERENTIATION_TIME(), _)
+    guard not stringEqual(Config.getMatchingAlgorithm(),"BB")
       equation
         //se1 = ExpressionDump.printExpStr(e);
         //print("\nExp-Cref\n all other vars: " + se1);
-        false = stringEqual(Config.getMatchingAlgorithm(),"BB");
 
         //({BackendDAE.VAR(varKind = BackendDAE.STATE(index=_))},_) = BackendVariable.getVar(cr, timevars);
         ({_},_) = BackendVariable.getVar(cr, timevars);
@@ -1128,10 +1128,10 @@ algorithm
 
     // Continuous-time variables (and for shared eq-systems, also unknown variables: keep them as-they-are)
     case ((e as DAE.CREF(componentRef = cr,ty = tp)), _, BackendDAE.DIFFINPUTDATA(dependenentVars=SOME(timevars)), BackendDAE.DIFFERENTIATION_TIME(), _)
+    guard stringEqual(Config.getMatchingAlgorithm(),"BB")
       equation
         //se1 = ExpressionDump.printExpStr(e);
         //print("\nExp-Cref\n all other vars: " + se1);
-        true = stringEqual(Config.getMatchingAlgorithm(),"BB");
 
         ({BackendDAE.VAR(varKind = BackendDAE.STATE(index=_))},_) = BackendVariable.getVar(cr, timevars);
         res = DAE.CALL(Absyn.IDENT("der"),{e},DAE.CALL_ATTR(tp,false,true,false,false,DAE.NO_INLINE(),DAE.NO_TAIL()));
@@ -1143,10 +1143,10 @@ algorithm
 
     // Continuous-time variables (and for shared eq-systems, also unknown variables: keep them as-they-are)
     case ((e as DAE.CREF(componentRef = cr,ty = tp)), _, BackendDAE.DIFFINPUTDATA(dependenentVars=SOME(timevars)), BackendDAE.DIFFERENTIATION_TIME(), _)
+    guard stringEqual(Config.getMatchingAlgorithm(),"BB")
       equation
         //se1 = ExpressionDump.printExpStr(e);
         //print("\nExp-Cref\n all other vars: " + se1);
-        true = stringEqual(Config.getMatchingAlgorithm(),"BB");
 
         ({_},_) = BackendVariable.getVar(cr, timevars);
         cr = ComponentReference.crefPrefixDer(cr);
@@ -1355,8 +1355,8 @@ algorithm
         (e,  inFunctionTree);
 
     case (DAE.CALL(path = path as Absyn.IDENT(name = "der"),expLst = {e},attr=attr), _, _, BackendDAE.DIFFERENTIATION_TIME(), _)
+      guard stringEqual(Config.getMatchingAlgorithm(),"BB")
       equation
-        true = stringEqual(Config.getMatchingAlgorithm(),"BB");
         cr = Expression.expCref(e);
         tp = Expression.typeof(e);
         cr = ComponentReference.crefPrefixDer(cr);

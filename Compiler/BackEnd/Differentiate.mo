@@ -570,17 +570,18 @@ algorithm
         //print("\nresults to exp: " + se1);
       then (res, functionTree);
 
-    /*/ differentiate homotopy
+    // differentiate homotopy
     case( e as DAE.CALL(
                 path = p as Absyn.IDENT(name="homotopy"),
                 expLst = {actual,simplified},
                 attr = attr), _, _, _, _)
+    guard not stringEqual(Config.getIndexReductionMethod(),"BB")
       equation
         (e1, functionTree) = differentiateExp(actual, inDiffwrtCref, inInputData, inDiffType, inFunctionTree);
         (e2, functionTree) = differentiateExp(simplified, inDiffwrtCref, inInputData, inDiffType, functionTree);
         res = DAE.CALL(p, {e1, e2}, attr);
       then
-        (res, functionTree);*/
+        (res, functionTree);
 
     // differentiate call
     case( e as DAE.CALL(), _, _, _, _)

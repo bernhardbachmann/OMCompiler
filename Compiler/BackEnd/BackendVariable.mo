@@ -3169,6 +3169,21 @@ algorithm
   vararraySetnth(arr, inIndex, inVar);
 end setVarAt;
 
+public function getVarsFromIntList
+"author: BB"
+  input list<Integer> inIndices;
+  input BackendDAE.Variables inVariables;
+  output list<BackendDAE.Var> outVars ={};
+protected
+  Integer index;
+  BackendDAE.Var var;
+algorithm
+  for index in inIndices loop
+    var := getVarAt(inVariables, index);
+    outVars := var::outVars;
+  end for;
+end getVarsFromIntList;
+
 public function getVarAtIndexFirst
 "author: marcusw
   Return variable at a given position, enumerated from 1..n, but with the index as first argument, so that it can be used with fold an map functions."

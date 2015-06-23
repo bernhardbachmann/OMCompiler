@@ -1589,6 +1589,7 @@ protected
 algorithm
 
   for tpl in iTplLst loop
+     //BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
     (level,_,nStateCandidates,nUnassignedEquations,stateCandidates,cEqnsLst,otherVars,oEqnLst) := tpl;
     rang := nStateCandidates - nUnassignedEquations;
     b := intGt(rang,1);

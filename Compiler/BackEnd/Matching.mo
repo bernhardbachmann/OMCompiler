@@ -296,7 +296,9 @@ algorithm
       try
         (ass1,ass2) := PerfectMatching(m);
       else
+        print("\nBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n");
         print("Dummy derivative method failed - No perfect matching!");
+        print("\nBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n");
         fail();
       end try;
       if Flags.isSet(Flags.INDEX_REDUCTION_V) then
@@ -388,13 +390,13 @@ algorithm
       BackendDump.printEquations(mEqns, outSys);
       print("New state candidates! \n");
       for j in stateCands loop
-         print(intString(j) + " [" + intString(outStateSets[j]) + "]: ");
-         BackendDump.printVar(BackendVariable.getVarAt(vars,j));
+         print(intString(j) + " [" + intString(outStateSets[j]) + "]: " +
+         ComponentReference.printComponentRefStr(BackendVariable.varCref(BackendVariable.getVarAt(vars,j))) + "\n");
       end for;
       print("Old state candidates! \n");
       for j in restCands loop
-         print(intString(j) + " [" + intString(outStateSets[j]) + "]: ");
-         BackendDump.printVar(BackendVariable.getVarAt(vars,j));
+         print(intString(j) + " [" + intString(outStateSets[j]) + "]: "+
+         ComponentReference.printComponentRefStr(BackendVariable.varCref(BackendVariable.getVarAt(vars,j))) + "\n");
       end for;
     end if;
 
@@ -429,31 +431,48 @@ algorithm
         BackendDump.printEquation(eqn);
       end if;
       try
-        if not BackendEquation.isDifferentiated(eqn) and not BackendDAEUtil.isDiscreteEquation(eqn,vars,knvars) then
-          (diffEqn, outShared) := Differentiate.differentiateEquationTime(eqn, vars, outShared);
-          if not (Expression.isZero(BackendEquation.getEquationRHS(diffEqn)) and Expression.isZero(BackendEquation.getEquationLHS(diffEqn))) then
-            crlst := BackendEquation.equationUnknownCrefs({diffEqn}, vars, knvars);
-            for cr in crlst loop
-              var := BackendVariable.makeVar(cr);
-              vars := BackendVariable.addVar(var, vars);
-            end for;
-            eqn  := BackendEquation.markDifferentiated(eqn);
-            eqns := BackendEquation.setAtIndex(eqns,j,eqn);
-            eqns := BackendEquation.addEquation(diffEqn,eqns);
-            if Flags.isSet(Flags.INDEX_REDUCTION_V) then
-              print("Differentiated equation : \n");
-              BackendDump.printEquation(diffEqn);
-            end if;
-          else
-            fail();
+        if BackendEquation.isDifferentiated(eqn) then
+          if Flags.isSet(Flags.INDEX_REDUCTION) then
+            print("Equation has already been differentiated:\n");
+            BackendDump.printEquation(eqn);
           end if;
-        else
           fail();
         end if;
+
+        if BackendDAEUtil.isDiscreteEquation(eqn,vars,knvars) then
+          if Flags.isSet(Flags.INDEX_REDUCTION) then
+            print("Equation is discrete:\n");
+            BackendDump.printEquation(eqn);
+          end if;
+          fail();
+        end if;
+
+        (diffEqn, outShared) := Differentiate.differentiateEquationTime(eqn, vars, outShared);
+
+        if (Expression.isZero(BackendEquation.getEquationRHS(diffEqn)) and Expression.isZero(BackendEquation.getEquationLHS(diffEqn))) then
+          print("Differentiatied equation is trivial:\n");
+          BackendDump.printEquation(diffEqn);
+          fail();
+        end if;
+
+        crlst := BackendEquation.equationUnknownCrefs({diffEqn}, vars, knvars);
+        for cr in crlst loop
+          var := BackendVariable.makeVar(cr);
+          vars := BackendVariable.addVar(var, vars);
+        end for;
+        eqn  := BackendEquation.markDifferentiated(eqn);
+        eqns := BackendEquation.setAtIndex(eqns,j,eqn);
+        eqns := BackendEquation.addEquation(diffEqn,eqns);
+        if Flags.isSet(Flags.INDEX_REDUCTION_V) then
+          print("Differentiated equation : \n");
+          BackendDump.printEquation(diffEqn);
+        end if;
       else
-        print("Differentiation failed for :\n");
-        BackendDump.printEquation(eqn);
-        fail();
+        if Flags.isSet(Flags.INDEX_REDUCTION) then
+          print("Differentiation failed for :\n");
+          BackendDump.printEquation(eqn);
+        end if;
+        //fail();
       end try;
     end for;
 

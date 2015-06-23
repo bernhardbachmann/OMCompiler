@@ -242,7 +242,18 @@ algorithm
       end for;
 
       for i in 1:stateSetNumber loop
+        if listLength(stateSetsVarList[i])>0 then
         (dummyIndices, stateIndices) := List.split(stateSetsVarList[i],numberOfDummyStates);
+        if Flags.isSet(Flags.INDEX_REDUCTION_V) then
+          print("Dummy states:\n");
+          for dummyIndx in dummyIndices loop
+            print(ComponentReference.printComponentRefStr(BackendVariable.varCref(BackendVariable.getVarAt(vars,dummyIndx))) + "\n");
+          end for;
+          print("States:\n");
+          for dummyIndx in stateIndices loop
+            print(ComponentReference.printComponentRefStr(BackendVariable.varCref(BackendVariable.getVarAt(vars,dummyIndx))) + "\n");
+          end for;
+        end if;
         for dummyIndx in dummyIndices loop
           vars := BackendVariable.setVarKindForVar(dummyIndx,BackendDAE.DUMMY_STATE(),vars);
           BackendDAE.VAR(varName=cr) := BackendVariable.getVarAt(vars, dummyIndx);
@@ -290,6 +301,7 @@ algorithm
           outSys := BackendDAE.EQSYSTEM(vars,eqns,NONE(),NONE(),BackendDAE.NO_MATCHING(),stateSetsDummy,partitionKind);
           (_, m, mT) := BackendDAEUtil.getIncidenceMatrix(outSys, BackendDAE.NORMAL(), SOME(funcs));
         end for;
+        end if;
       end for;
 
 
@@ -397,6 +409,22 @@ algorithm
       for j in restCands loop
          print(intString(j) + " [" + intString(outStateSets[j]) + "]: "+
          ComponentReference.printComponentRefStr(BackendVariable.varCref(BackendVariable.getVarAt(vars,j))) + "\n");
+      end for;
+    end if;
+
+    if listLength(stateCands) == 0 then
+      stateCands := restCands;
+      outStateSetNumber := outStateSetNumber+1;
+      for j in restCands loop
+        if Flags.isSet(Flags.INDEX_REDUCTION_V) then
+          print("\nCandidate " + intString(j) + ";  state set number : " + intString(outStateSets[j]) + "\n");
+          BackendDump.printEquations(outStateSetsEqnList[outStateSets[j]], outSys);
+        end if;
+        outStateSetsVarList[outStateSetNumber] := List.union(outStateSetsVarList[outStateSetNumber],outStateSetsVarList[outStateSets[j]]);
+        outStateSetsEqnList[outStateSetNumber] := List.union(outStateSetsEqnList[outStateSetNumber],outStateSetsEqnList[outStateSets[j]]);
+        outStateSetsVarList[outStateSets[j]] := {};
+        outStateSetsEqnList[outStateSets[j]] := {};
+        outStateSets[j] := outStateSetNumber;
       end for;
     end if;
 

@@ -447,7 +447,9 @@ constant DebugFlag RUNTIME_STATIC_LINKING = DEBUG_FLAG(138, "runtimeStaticLinkin
 constant DebugFlag DYNAMIC_TEARING_INFO = DEBUG_FLAG(139, "dynamicTearingInfo", false,
   Util.gettext("Dumps information about the strict and casual sets of the tearing system."));
 constant DebugFlag INDEX_REDUCTION = DEBUG_FLAG(140, "indexReduction", false,
-  Util.gettext("Dumps information about the index reduction."));
+  Util.gettext("Dumps some information about the index reduction."));
+constant DebugFlag INDEX_REDUCTION_V = DEBUG_FLAG(141, "indexReductionAll", false,
+  Util.gettext("Dumps all information about the index reduction."));
 
 // This is a list of all debug flags, to keep track of which flags are used. A
 // flag can not be used unless it's in this list, and the list is checked at
@@ -594,7 +596,8 @@ constant list<DebugFlag> allDebugFlags = {
   CHECK_EXT_LIBS,
   RUNTIME_STATIC_LINKING,
   DYNAMIC_TEARING_INFO,
-  INDEX_REDUCTION
+  INDEX_REDUCTION,
+  INDEX_REDUCTION_V
 };
 
 public

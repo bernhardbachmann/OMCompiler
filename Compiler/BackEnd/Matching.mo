@@ -132,9 +132,11 @@ protected
   list<DAE.ComponentRef> crlst;
   DAE.Exp derVar;
   BackendDAE.IncidenceMatrix m;
+  BackendDAE.IncidenceMatrix mSiSy;
   BackendDAE.IncidenceMatrixT mT;
   Integer nVars, nEqns, j, stateSetNumber=0;
   array<Integer> ass1, ass2;
+  array<Integer> ass1SiSy, ass2SiSy;
   array<Boolean> eMark, vMark;
   BackendDAE.EquationArray eqns, stateSetEqns;
   BackendDAE.Variables vars, stateSetAllVars;
@@ -217,7 +219,8 @@ algorithm
         //Sorting of state candidates
         stateCandVars := List.map1(stateSetsVarList[i], BackendVariable.getVarAtIndexFirst, vars);
         stateSetsVarList[i] := (BackendVariable.getVarIndexFromVars(IndexReduction.sortStateCandidatesVarList(stateCandVars, vars, SOME(m)),vars));
-        if Flags.isSet(Flags.INDEX_REDUCTION) then
+        stateSetAllVarList := {};
+        if Flags.isSet(Flags.INDEX_REDUCTION_V) then
           print("\nState set " + intString(i) + "\n");
           for j in stateSetsVarList[i] loop
             BackendDump.printVar(BackendVariable.getVarAt(vars,j));
@@ -235,16 +238,31 @@ algorithm
           print("Corresponding equation set " + intString(i) + "\nNumber of not assigned equations " + intString(numberOfNotAssigned) + "\n");
           BackendDump.printEquations(stateSetsEqnList[i], outSys);
         end if;
-        //stateSetEqns := BackendEquation.listEquation(BackendEquation.getEqns(stateSetsEqnList[i],eqns));
-        //stateSetAllVars := BackendVariable.listVar(BackendVariable.getVarsFromIntList(stateSetAllVarList,vars));
-        //stateSys := BackendDAE.EQSYSTEM(stateSetAllVars,stateSetEqns,NONE(),NONE(),BackendDAE.NO_MATCHING(),stateSetsDummy,partitionKind);
-        //BackendDump.dumpEqSystem(stateSys,"State Set system");
-      end for;
+        stateSetEqns := BackendEquation.listEquation(BackendEquation.getEqns(stateSetsEqnList[i],eqns));
+        stateSetAllVars := BackendVariable.listVar(BackendVariable.getVarsFromIntList(stateSetAllVarList,vars));
+        stateSys := BackendDAE.EQSYSTEM(stateSetAllVars,stateSetEqns,NONE(),NONE(),BackendDAE.NO_MATCHING(),stateSetsDummy,partitionKind);
+        BackendDump.dumpEqSystem(stateSys,"State Set system");
+        //BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+        (_, mSiSy, _) := BackendDAEUtil.getIncidenceMatrix(stateSys, BackendDAE.NORMAL(), SOME(funcs));
+        try
+          ass2SiSy := arrayCreate(listLength(stateSetsEqnList[i]), -1);
+          ass1SiSy := arrayCreate(listLength(stateSetAllVarList), -1);
+          (ass1SiSy,ass2SiSy) := RegularMatching(m,listLength(stateSetAllVarList),listLength(stateSetsEqnList[i]));
+          BackendDump.dumpMatchingVars(ass1SiSy);
+          BackendDump.dumpMatchingEqns(ass2SiSy);
 
-      for i in 1:stateSetNumber loop
+        else
+          print("\nBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n");
+          print("Perfect matching of singular system failed!");
+          //BackendDump.dumpMatchingVars(ass1);
+          //BackendDump.dumpMatchingEqns(ass2);
+          print("\nBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n");
+          fail();
+        end try;
+        //BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
         if listLength(stateSetsVarList[i])>0 then
         (dummyIndices, stateIndices) := List.split(stateSetsVarList[i],numberOfDummyStates);
-        if Flags.isSet(Flags.INDEX_REDUCTION_V) then
+        if Flags.isSet(Flags.INDEX_REDUCTION) then
           print("Dummy states:\n");
           for dummyIndx in dummyIndices loop
             print(ComponentReference.printComponentRefStr(BackendVariable.varCref(BackendVariable.getVarAt(vars,dummyIndx))) + "\n");
@@ -310,6 +328,8 @@ algorithm
       else
         print("\nBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n");
         print("Dummy derivative method failed - No perfect matching!");
+        //BackendDump.dumpMatchingVars(ass1);
+        //BackendDump.dumpMatchingEqns(ass2);
         print("\nBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n");
         fail();
       end try;
@@ -412,8 +432,8 @@ algorithm
       end for;
     end if;
 
-    if listLength(stateCands) == 0 then
-      stateCands := restCands;
+    if listLength(restCands) <> 0 then
+      stateCands := listAppend(stateCands,restCands);
       outStateSetNumber := outStateSetNumber+1;
       for j in restCands loop
         if Flags.isSet(Flags.INDEX_REDUCTION_V) then
@@ -426,25 +446,23 @@ algorithm
         outStateSetsEqnList[outStateSets[j]] := {};
         outStateSets[j] := outStateSetNumber;
       end for;
-    end if;
-
-    if listLength(restCands) == 0 then
-      outStateSetNumber := outStateSetNumber+1;
     else
-      for j in mEqns loop
-        for k in m[j] loop
-          if listMember(k,restCands) then
-            //if outStateSets[k] == maxStateSetNumber then
-              newStateSet := true;
-            //end if;
-          end if;
-        end for;
-      end for;
-    end if;
-
-    if newStateSet then
       outStateSetNumber := outStateSetNumber+1;
     end if;
+
+    //for j in mEqns loop
+    //  for k in m[j] loop
+    //    if listMember(k,restCands) then
+    //      if outStateSets[k] == maxStateSetNumber then
+    //        newStateSet := true;
+    //      end if;
+    //    end if;
+    //  end for;
+    //end for;
+
+    //if newStateSet then
+    //  outStateSetNumber := outStateSetNumber+1;
+    //end if;
     for j in stateCands loop
       outStateSets[j] := outStateSetNumber;
     end for;

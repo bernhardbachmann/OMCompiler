@@ -125,7 +125,7 @@ public function BBMatching
   output BackendDAE.Shared outShared=inShared;
   output BackendDAE.StructurallySingularSystemHandlerArg outArg=inArg;
 protected
-  Integer i;
+  Integer i, k;
   Boolean success = true;
   DAE.FunctionTree funcs;
   DAE.ComponentRef cr, cr1;
@@ -241,16 +241,25 @@ algorithm
         stateSetEqns := BackendEquation.listEquation(BackendEquation.getEqns(stateSetsEqnList[i],eqns));
         stateSetAllVars := BackendVariable.listVar(BackendVariable.getVarsFromIntList(stateSetAllVarList,vars));
         stateSys := BackendDAE.EQSYSTEM(stateSetAllVars,stateSetEqns,NONE(),NONE(),BackendDAE.NO_MATCHING(),stateSetsDummy,partitionKind);
-        BackendDump.dumpEqSystem(stateSys,"State Set system");
+        if Flags.isSet(Flags.INDEX_REDUCTION_V) then
+          BackendDump.dumpEqSystem(stateSys,"State Set system");
+        end if;
         //BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
         (_, mSiSy, _) := BackendDAEUtil.getIncidenceMatrix(stateSys, BackendDAE.NORMAL(), SOME(funcs));
+        for k in 1:arrayLength(mSiSy) loop
+          mSiSy[k] := list(-j for j in mSiSy[k]);
+        end for;
         try
+          if Flags.isSet(Flags.INDEX_REDUCTION_V) then
+            BackendDump.dumpIncidenceMatrix(mSiSy);
+          end if;
           ass2SiSy := arrayCreate(listLength(stateSetsEqnList[i]), -1);
           ass1SiSy := arrayCreate(listLength(stateSetAllVarList), -1);
-          (ass1SiSy,ass2SiSy) := RegularMatching(m,listLength(stateSetAllVarList),listLength(stateSetsEqnList[i]));
-          BackendDump.dumpMatchingVars(ass1SiSy);
-          BackendDump.dumpMatchingEqns(ass2SiSy);
-
+          (ass1SiSy,ass2SiSy) := RegularMatching(mSiSy,listLength(stateSetAllVarList),listLength(stateSetsEqnList[i]));
+          if Flags.isSet(Flags.INDEX_REDUCTION_V) then
+            BackendDump.dumpMatchingVars(ass1SiSy);
+            BackendDump.dumpMatchingEqns(ass2SiSy);
+          end if;
         else
           print("\nBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n");
           print("Perfect matching of singular system failed!");
@@ -261,7 +270,23 @@ algorithm
         end try;
         //BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
         if listLength(stateSetsVarList[i])>0 then
-        (dummyIndices, stateIndices) := List.split(stateSetsVarList[i],numberOfDummyStates);
+          for j in stateSetsVarList[i] loop
+            print(ComponentReference.printComponentRefStr(BackendVariable.varCref(BackendVariable.getVarAt(vars,j))) + "\n");
+          end for;
+        //(dummyIndices, stateIndices) := List.split(stateSetsVarList[i],numberOfDummyStates);
+        dummyIndices := {};
+        stateIndices := {};
+        j := 1;
+        for k in stateSetsVarList[i] loop
+          if ass1SiSy[j]>0 then
+            dummyIndices := k::dummyIndices;
+          else
+            stateIndices := k::stateIndices;
+          end if;
+          j := j+1;
+        end for;
+        dummyIndices := listReverse(dummyIndices);
+        stateIndices := listReverse(stateIndices);
         if Flags.isSet(Flags.INDEX_REDUCTION) then
           print("Dummy states:\n");
           for dummyIndx in dummyIndices loop

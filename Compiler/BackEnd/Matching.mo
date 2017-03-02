@@ -54,6 +54,7 @@ import Debug;
 import DumpGraphML;
 import ElementSource;
 import Error;
+import Expression;
 import Flags;
 import IndexReduction;
 import List;
@@ -175,6 +176,8 @@ algorithm
         for j in 1:nEqns loop
           if eMark[j] then
             mEqns:=j::mEqns;
+          end if;
+        end for;
 /*
   BackendDAE.EquationArray eqns, stateSetEqns;
   BackendDAE.Variables vars, stateSetAllVars;
@@ -228,7 +231,6 @@ algorithm
             (_, i, outSys, outShared, ass1, ass2, outArg) := sssHandler({mEqns}, i, outSys, outShared, ass1, ass2, outArg);
             i := i-1;
 */
-          end if;
           BackendDAE.EQSYSTEM(m=SOME(m)) := outSys;
           nEqns := BackendDAEUtil.systemSize(outSys);
           nVars := BackendVariable.daenumVariables(outSys);
@@ -281,6 +283,10 @@ algorithm
         //eMark := assignmentsArrayBooleanExpand(eMark, nEqns, arrayLength(eMark), false);
         success := true;
         i := i-1;
+      end for;
+    end if;
+
+
 /*
         numberOfDummyStates := numberOfNotAssigned;
 
@@ -416,23 +422,12 @@ algorithm
         BackendDump.dumpMatchingEqns(ass2);
 >>>>>>> First working prototype of index reduction module
 */
-      end if;
-   end if;
-
     if success then
       outSys := BackendDAEUtil.setEqSystemMatching(outSys, BackendDAE.MATCHING(ass1, ass2, {}));
       //BackendDump.dumpEqSystem(outSys,"After dummy derivative method");
     else
       Error.addMessage(Error.INTERNAL_ERROR, {"System singular. +d=indexReduction,indexReductionAll to get more information."});
     end if;
-    i := i+1;
-  end while;
-  if success then
-    outSys := BackendDAEUtil.setEqSystMatching(outSys, BackendDAE.MATCHING(ass1, ass2, {}));
-  else
-    Error.addMessage(Error.INTERNAL_ERROR, {"BBMatching failed. +d=indexReduction,indexReductionAll to get more information."});
-    fail();
-  end try;
 end BBMatching;
 
 protected function PrototypeIndexReduction
@@ -471,7 +466,7 @@ algorithm
   try
     n := listLength(mEqns);
     BackendDAE.EQSYSTEM(orderedVars=vars,orderedEqs=eqns,m=SOME(m),mT=SOME(mT),stateSets=stateSets,partitionKind=partitionKind):=outSys;
-    knvars := BackendDAEUtil.getknvars(outShared);
+    knvars := BackendDAEUtil.getGlobalKnownVarsFromShared(outShared);
     funcs := BackendDAEUtil.getFunctions(outShared);
 
     // New idea:

@@ -379,7 +379,7 @@ algorithm
   dumpVarList(inStateSet.varA, "varA");
   dumpVarList(inStateSet.varJ, "varJ");
 
-  //print(jacobianString(inStateSet.jacobian));
+  print(jacobianString(inStateSet.jacobian));
 end printStateSet;
 
 public function printVar

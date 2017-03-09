@@ -7027,6 +7027,7 @@ protected function causalizeDAEWork "
   output Option<BackendDAE.StructurallySingularSystemHandlerArg> oArg;
   output Boolean oCausalized;
 algorithm
+  print("===== causalizeDAEWork start=====\n");
   (osyst,oshared,oArg,oCausalized) := matchcontinue (isyst,ishared,inMatchingOptions,matchingAlgorithm,stateDeselection,iCausalized)
     local
       String str,mAmethodstr,str1;
@@ -7071,6 +7072,7 @@ algorithm
       then
         fail();
   end matchcontinue;
+  print("===== causalizeDAEWork end=====\n");
 end causalizeDAEWork;
 
 protected function stateDeselectionDAE

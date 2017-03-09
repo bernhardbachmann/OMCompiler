@@ -117,7 +117,7 @@ algorithm
   end while;
 end RegularMatching;
 
-public function BBMatching
+public function BBMatchingOld
   input BackendDAE.EqSystem inSys;
   input BackendDAE.Shared inShared;
   input Boolean clearMatching;
@@ -141,6 +141,7 @@ protected
   list<Integer> mEqns;
 algorithm
   //BackendDAE.EQSYSTEM(m=SOME(m), matching=BackendDAE.MATCHING(ass1=ass1, ass2=ass2)) := outSys;
+  print("===== BBMatching =====\n");
   SOME(m) := outSys.m;
   nEqns := BackendDAEUtil.systemSize(outSys);
   nVars := BackendVariable.daenumVariables(outSys);
@@ -191,9 +192,9 @@ algorithm
   else
     print("\nSingular System!!!\n");
   end if;
-end BBMatching;
+end BBMatchingOld;
 
-public function BBMatchingOld
+public function BBMatching
   input BackendDAE.EqSystem inSys;
   input BackendDAE.Shared inShared;
   input Boolean clearMatching;
@@ -435,7 +436,7 @@ algorithm
     Error.addMessage(Error.INTERNAL_ERROR, {"BBMatching failed. +d=indexReduction,indexReductionAll to get more information."});
     fail();
   end try;
-end BBMatchingOld;
+end BBMatching;
 
 protected function PrototypeIndexReduction
   input list<Integer> mEqns;

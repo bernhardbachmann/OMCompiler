@@ -89,6 +89,7 @@ typedef struct DATA_HOMOTOPY
   double* minValue; /* min-attribute of variable, only pointer */
   double* maxValue; /* max-attribute of variable, only pointer */
   double* xScaling; /* nominal-attrbute [x.nominal,lambda.nominal] with lambda.nominal=1.0 */
+  double* fScaling; /* residual-scaling [maximum of absolute values of the Jacobian rows] */
 
   /* used in wrapper_*/
   double* f1;
@@ -157,6 +158,7 @@ typedef struct DATA_HOMOTOPY
 
 } DATA_HOMOTOPY;
 
+void vecConst(int n, double value, double *a);
 /*! \fn allocateHomotopyData
  *  allocate memory for nonlinear system solver
  *  \author bbachmann
@@ -186,6 +188,8 @@ int allocateHomotopyData(int size, void** voiddata)
   data->dxScaled = (double*) calloc(size,sizeof(double));
 
   data->xScaling = (double*) calloc((size+1),sizeof(double));
+  data->fScaling = (double*) calloc(size,sizeof(double));
+  vecConst(data->n,1.0,data->fScaling);
 
   data->f1 = (double*) calloc(size,sizeof(double));
   data->f2 = (double*) calloc(size,sizeof(double));
@@ -269,6 +273,7 @@ int freeHomotopyData(void **voiddata)
   free(data->dy1);
   free(data->dy2);
   free(data->xScaling);
+  free(data->fScaling);
   free(data->ones);
 
   /* linear system */
@@ -717,6 +722,37 @@ void matDiffBB(int n, double* A, double* B, double* C)
 }
 
 /* Matrix has dimension [n x m] */
+void get_fScaling(int n, int m, double *A, double *fScaling)
+{
+  int i, j;
+  double rowMax;
+  for (i=0;i<n;i++) {
+    rowMax = 0;
+    for (j=0;j<n;j++) {
+      if (fabs(A[i+j*(m-1)]) > rowMax) {
+         rowMax = fabs(A[i+j*(m-1)]);
+      }
+    }
+    fScaling[i] = rowMax;
+  }
+}
+
+/* Matrix has dimension [n x m] */
+void matDivScaling(int n, int m, double *A, double *b)
+{
+  const double delta = sqrt(DBL_EPSILON);
+  int i, j;
+  double rowMax;
+  for (i=0;i<n;i++) {
+    if (b[i]>0) {
+      for (j=0;j<m;j++)
+        A[i+j*(m-1)] /= b[i];
+    }
+  }
+}
+
+
+/* Matrix has dimension [n x m] */
 void scaleMatrixRows(int n, int m, double *A)
 {
   const double delta = sqrt(DBL_EPSILON);
@@ -849,6 +885,8 @@ static int wrapper_fvec(DATA_HOMOTOPY* solverData, double* x, double* f)
   (solverData->data)->simulationInfo->nonlinearSystemData[solverData->sysNumber].residualFunc(dataAndThreadData, x, f, &iflag);
   solverData->numberOfFunctionEvaluations++;
 
+  vecDivScaling(solverData->n, f, solverData->fScaling, f);
+
   return 0;
 }
 
@@ -913,6 +951,8 @@ static int wrapper_fvec_der(DATA_HOMOTOPY* solverData, double* x, double* fJac)
   /* performance measurement and statistics */
   nonlinsys->jacobianTime += rt_ext_tp_tock(&(nonlinsys->jacobianTimeClock));
   nonlinsys->numberOfJEval++;
+
+  matDivScaling(solverData->n, solverData->m, fJac, solverData->fScaling);
 
   return 0;
 }
@@ -2028,6 +2068,7 @@ int solveHomotopy(DATA *data, threadData_t *threadData, int sysNumber)
 
   debugVectorDouble(LOG_NLS_V,"Nominal values", systemData->nominal, solverData->n);
   debugVectorDouble(LOG_NLS_V,"Scaling values", solverData->xScaling, solverData->m);
+  debugVectorDouble(LOG_NLS_V,"Function scaling values", solverData->fScaling, solverData->n);
 
 
   if (!solverData->initHomotopy) {
@@ -2088,6 +2129,9 @@ int solveHomotopy(DATA *data, threadData_t *threadData, int sysNumber)
         }
       }
       solverData->fJac_f(solverData, solverData->x0, solverData->fJac);
+      /* Determine resiudal scaling */
+      get_fScaling(solverData->n, (solverData->n)+1, solverData->fJac, solverData->fScaling);
+
       vecCopy(solverData->n, solverData->f1, solverData->fJac + solverData->n*solverData->n);
       vecCopy(solverData->n*solverData->m, solverData->fJac, solverData->fJacx0);
       if (mixedSystem)

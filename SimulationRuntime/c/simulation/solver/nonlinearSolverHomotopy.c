@@ -623,10 +623,11 @@ void vecMultScaling(int n, double *a, double *b, double *c)
 
 void vecDivScaling(int n, double *a, double *b, double *c)
 {
+  const double delta = sqrt(DBL_EPSILON);
   int i;
   for (i=0;i<n;i++)
     //c[i] = a[i]/fabs(b[i]);
-    c[i] = a[i]/fmax(1.0,fabs(b[i]));
+    c[i] = a[i]/fmax(delta,fabs(b[i]));
 }
 
 void vecNormalize(int n, double *a, double *b)
@@ -724,10 +725,11 @@ void matDiffBB(int n, double* A, double* B, double* C)
 /* Matrix has dimension [n x m] */
 void get_fScaling(int n, int m, double *A, double *fScaling)
 {
+  const double delta = sqrt(DBL_EPSILON);
   int i, j;
   double rowMax;
   for (i=0;i<n;i++) {
-    rowMax = 0;
+    rowMax = delta;
     for (j=0;j<n;j++) {
       if (fabs(A[i+j*(m-1)]) > rowMax) {
          rowMax = fabs(A[i+j*(m-1)]);
@@ -740,12 +742,13 @@ void get_fScaling(int n, int m, double *A, double *fScaling)
 /* Matrix has dimension [n x m] */
 void matDivScaling(int n, int m, double *A, double *b)
 {
+  const double delta = sqrt(DBL_EPSILON);
   int i, j;
   double rowMax;
   for (i=0;i<n;i++) {
     if (b[i]>1.0) {
       for (j=0;j<m;j++)
-        A[i+j*(m-1)] /= fmax(1.0,b[i]);
+        A[i+j*(m-1)] /= fmax(delta,b[i]);
     }
   }
 }
@@ -764,10 +767,8 @@ void scaleMatrixRows(int n, int m, double *A)
          rowMax = fabs(A[i+j*(m-1)]);
       }
     }
-    if (rowMax>1.0) {
-      for (j=0;j<m;j++)
+    for (j=0;j<m;j++)
         A[i+j*(m-1)] /= rowMax;
-    }
   }
 }
 
@@ -1515,7 +1516,7 @@ static int newtonAlgorithm(DATA_HOMOTOPY* solverData, double* x)
     }
 
     /* solution found */
-    if (((error_f_sqrd < solverData->ftol_sqrd) || (error_f_sqrd_scaled < solverData->ftol_sqrd)) )//&& ((delta_x_sqrd_scaled < solverData->xtol_sqrd) || (delta_x_sqrd < solverData->xtol_sqrd)))
+    if (((error_f_sqrd < solverData->ftol_sqrd) || (error_f_sqrd_scaled < solverData->ftol_sqrd)) && ((delta_x_sqrd_scaled < solverData->xtol_sqrd) || (delta_x_sqrd < solverData->xtol_sqrd)))
     {
       solverData->info = 1;
 

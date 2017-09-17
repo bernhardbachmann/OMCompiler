@@ -625,7 +625,8 @@ void vecDivScaling(int n, double *a, double *b, double *c)
 {
   int i;
   for (i=0;i<n;i++)
-    c[i] = a[i]/fabs(b[i]);
+    //if (fabs(b[i])>0)
+      c[i] = a[i]/fabs(b[i]);
     // c[i] = a[i]/fmax(1.0,fabs(b[i]));
 }
 
@@ -728,7 +729,7 @@ void get_fScaling(int n, int m, double *A, double *fScaling)
   int i, j;
   double rowMax;
   for (i=0;i<n;i++) {
-    rowMax = delta;
+    rowMax = 0;
     for (j=0;j<n;j++) {
       if (fabs(A[i+j*(m-1)]) > rowMax) {
          rowMax = fabs(A[i+j*(m-1)]);
@@ -741,13 +742,12 @@ void get_fScaling(int n, int m, double *A, double *fScaling)
 /* Matrix has dimension [n x m] */
 void matDivScaling(int n, int m, double *A, double *b)
 {
-  const double delta = sqrt(DBL_EPSILON);
   int i, j;
   double rowMax;
   for (i=0;i<n;i++) {
-    if (b[i]>1.0) {
+    if (fabs(b[i])>0) {
       for (j=0;j<m;j++)
-        A[i+j*(m-1)] /= fmax(delta,b[i]);
+         A[i+j*(m-1)] /= fabs(b[i]);
     }
   }
 }
@@ -886,8 +886,6 @@ static int wrapper_fvec(DATA_HOMOTOPY* solverData, double* x, double* f)
   (solverData->data)->simulationInfo->nonlinearSystemData[solverData->sysNumber].residualFunc(dataAndThreadData, x, f, &iflag);
   solverData->numberOfFunctionEvaluations++;
 
-  //vecDivScaling(solverData->n, f, solverData->fScaling, f);
-
   return 0;
 }
 
@@ -952,8 +950,6 @@ static int wrapper_fvec_der(DATA_HOMOTOPY* solverData, double* x, double* fJac)
   /* performance measurement and statistics */
   nonlinsys->jacobianTime += rt_ext_tp_tock(&(nonlinsys->jacobianTimeClock));
   nonlinsys->numberOfJEval++;
-
-  //matDivScaling(solverData->n, solverData->m, fJac, solverData->fScaling);
 
   return 0;
 }
@@ -1610,11 +1606,12 @@ static int newtonAlgorithm(DATA_HOMOTOPY* solverData, double* x)
  *  \author bbachmann
  *
  */
-static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
+static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* xx)
 {
   int numberOfIterations = 0 ,i, j, n=solverData->n, m=solverData->m;
   int  pos = solverData->n, rank;
-  double error_f_sqrd, error_f1_sqrd, error_f2_sqrd, error_f_sqrd_scaled, delta_x_sqrd, delta_x_sqrd_scaled, grad_f;
+  double error_f_sqrd, error_f1_sqrd, error_f2_sqrd, error_f_sqrd_scaled, grad_f;
+  double delta_x_sqrd, delta_x_sqrd_scaled;
   int numberOfSmallSteps = 0;
   double error_f_old = 1e100;
   int countNegativeSteps = 0;
@@ -1635,25 +1632,40 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
   /* debug information */
   debugString(LOG_NLS_V, "******************************************************");
   debugInt(LOG_NLS_V, "NEWTON SOLVER STARTED! equation number: ",solverData->eqSystemNumber);
-  debugInt(LOG_NLS_V, "maximum number of function evaluation: ", solverData->maxNumberOfIterations);
-  printUnknowns(LOG_NLS, solverData);
+//  debugInt(LOG_NLS_V, "maximum number of function evaluation: ", solverData->maxNumberOfIterations);
 
   /* set default solver message */
   solverData->info = 0;
 
+  /* Determine residual scaling and scale right-hand side and Jacobian*/
+  solverData->f(solverData, solverData->x, solverData->f1);
+  solverData->fJac_f(solverData, solverData->x, solverData->fJac);
+  get_fScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+  vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
+  matDivScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+
+  vecCopy(solverData->n, solverData->f1, solverData->fJac + solverData->n*solverData->n);
+  vecCopy(solverData->n, solverData->x, solverData->x1);
+
+  debugVectorDouble(LOG_NLS_V,"BB: Starting values", solverData->x, solverData->n);
+  debugVectorDouble(LOG_NLS_V,"BB: Function scaling values", solverData->fScaling, solverData->n);
+  debugMatrixDouble(LOG_NLS_V,"BB: Jacobian matrix values", solverData->fJac, solverData->n, solverData->m);
+
   /* calculated error of function values */
   error_f_sqrd = vec2NormSqrd(solverData->n, solverData->f1);
-  error_f_sqrd_scaled = error_f_sqrd;
 
   while(1)
   {
     numberOfIterations++;
     /* debug information */
     debugInt(LOG_NLS_V, "Iteration:", numberOfIterations);
+    debugVectorDouble(LOG_NLS_V,"BB: Iteration values", solverData->x, solverData->n);
+    debugVectorDouble(LOG_NLS_V,"BB: Function scaling values", solverData->fScaling, solverData->n);
+    debugMatrixDouble(LOG_NLS_V,"BB: Jacobian matrix values", solverData->fJac, solverData->n, solverData->m);
 
     /* solve jacobian and function value (both stored in hJac, last column is fvec), side effects: jacobian matrix is changed */
     if (numberOfIterations>1)
-      solverinfo = linearSolverWrapper(solverData->n, solverData->dy0, solverData->fJac, solverData->indRow, solverData->indCol, &pos, &rank, linearSolverMethod, solverData->casualTearingSet);
+      solverinfo = solveSystemWithTotalPivotSearch(solverData->n, solverData->dy0, solverData->fJac, solverData->indRow, solverData->indCol, &pos, &rank, solverData->casualTearingSet);
 
     if (solverinfo == -1)
     {
@@ -1668,10 +1680,12 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
     else
     {
       /* Scaling back to original variables */
+      debugVectorDouble(LOG_NLS_V,"BB: Scaled step", solverData->dy0, solverData->n);
       vecMultScaling(solverData->m, solverData->dy0, solverData->xScaling, solverData->dy0);
-      /* try full Newton step */
-      vecAdd(solverData->n, x, solverData->dy0, solverData->x1);
-      printNewtonStep(LOG_NLS_V, solverData);
+      debugVectorDouble(LOG_NLS_V,"BB: Unscaled step", solverData->dy0, solverData->n);
+    /* try full Newton step */
+      vecAdd(solverData->n, solverData->x1, solverData->dy0, solverData->x);
+//      printNewtonStep(LOG_NLS_V, solverData);
 
       /* Damping strategy, performance is very sensitive on the value of lambda */
       lambda1 = 1.0;
@@ -1681,21 +1695,31 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
       {
         if (!firstrun){
           lambda1 *= 0.655;
-          vecAddScal(solverData->n, x, solverData->dy0, lambda1, solverData->x1);
+          vecAddScal(solverData->n, solverData->x1, solverData->dy0, lambda1, solverData->x);
           assert = 1;
         }
 #ifndef OMC_EMCC
     MMC_TRY_INTERNAL(simulationJumpBuffer)
 #endif
         if (solverData->casualTearingSet){
-          constraintViolated = solverData->f_con(solverData, solverData->x1, solverData->f1);
+          constraintViolated = solverData->f_con(solverData, solverData->x, solverData->f1);
           if (constraintViolated){
             lambda1 = lambdaMin-1;
             break;
           }
         }
         else
-          solverData->f(solverData, solverData->x1, solverData->f1);
+          solverData->f(solverData, solverData->x, solverData->f1);
+
+//        solverData->fJac_f(solverData, solverData->x, solverData->fJac);
+//        get_fScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+        vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
+//        matDivScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+//        vecCopy(solverData->n, solverData->f1, solverData->fJac + solverData->n*solverData->n);
+
+//        debugVectorDouble(LOG_NLS_V,"BB: New iteration values", solverData->x, solverData->n);
+//        debugVectorDouble(LOG_NLS_V,"BB: Function scaling values", solverData->fScaling, solverData->n);
+//        debugMatrixDouble(LOG_NLS_V,"BB: Jacobian matrix values", solverData->fJac, solverData->n, solverData->m);
 
         assert = 0;
 #ifndef OMC_EMCC
@@ -1718,7 +1742,7 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
       /* calculate gradient of quadratic function for damping strategy */
       grad_f = -2.0*error_f_sqrd;
       error_f1_sqrd = vec2NormSqrd(solverData->n, solverData->f1);
-      if ((error_f1_sqrd > error_f_sqrd + alpha*lambda1*grad_f) && (error_f_sqrd > 1e-12) && (error_f_sqrd_scaled > 1e-12))
+      if ((error_f1_sqrd > error_f_sqrd + alpha*lambda1*grad_f) && (error_f_sqrd > 1e-12))
       {
         debugDouble(LOG_NLS_V,"Need to damp, grad_f = ", grad_f);
         debugDouble(LOG_NLS_V,"Need to damp, error_f = ", sqrt(error_f_sqrd));
@@ -1729,20 +1753,30 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
         debugDouble(LOG_NLS_V,"Need to damp, forced error = ", error_f_sqrd + alpha*lambda1*grad_f);
         lambda2 = fmax(-lambda1*lambda1*grad_f/(2*(error_f1_sqrd-error_f_sqrd-lambda1*grad_f)),lambdaMin);
         debugDouble(LOG_NLS_V,"Need to damp this!! lambda2 = ", lambda2);
-        vecAddScal(solverData->n, x, solverData->dy0, lambda2, solverData->x1);
+        vecAddScal(solverData->n, solverData->x1, solverData->dy0, lambda2, solverData->x);
         assert= 1;
 #ifndef OMC_EMCC
         MMC_TRY_INTERNAL(simulationJumpBuffer)
 #endif
         if (solverData->casualTearingSet){
-          constraintViolated = solverData->f_con(solverData, solverData->x1, solverData->f1);
+          constraintViolated = solverData->f_con(solverData, solverData->x, solverData->f1);
           if (constraintViolated){
             solverData->info = -1;
             break;
           }
         }
         else
-          solverData->f(solverData, solverData->x1, solverData->f1);
+          solverData->f(solverData, solverData->x, solverData->f1);
+
+//        solverData->fJac_f(solverData, solverData->x, solverData->fJac);
+//        get_fScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+        vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
+//        matDivScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+//        vecCopy(solverData->n, solverData->f1, solverData->fJac + solverData->n*solverData->n);
+
+//        debugVectorDouble(LOG_NLS_V,"BB: New damped iteration values", solverData->x, solverData->n);
+//        debugVectorDouble(LOG_NLS_V,"BB: Function scaling values", solverData->fScaling, solverData->n);
+//        debugMatrixDouble(LOG_NLS_V,"BB: Jacobian matrix values", solverData->fJac, solverData->n, solverData->m);
 
         error_f2_sqrd = vec2NormSqrd(solverData->n, solverData->f1);
         debugDouble(LOG_NLS_V,"Need to damp, error_f2 = ", sqrt(error_f2_sqrd));
@@ -1756,7 +1790,7 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
           solverData->info = -1;
           break;
         }
-        if ((error_f1_sqrd > error_f_sqrd + alpha*lambda2*grad_f) && (error_f_sqrd > 1e-12) && (error_f_sqrd_scaled > 1e-12))
+        if ((error_f1_sqrd > error_f_sqrd + alpha*lambda2*grad_f) && (error_f_sqrd > 1e-12))
         {
           rhs1 = error_f1_sqrd - grad_f*lambda1 - error_f_sqrd;
           rhs2 = error_f2_sqrd - grad_f*lambda2 - error_f_sqrd;
@@ -1777,20 +1811,30 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
           }
           lambda = fmax(lambda, lambdaMin);
           debugDouble(LOG_NLS_V,"Need to damp this!! lambda = ", lambda);
-          vecAddScal(solverData->n, x, solverData->dy0, lambda, solverData->x1);
+          vecAddScal(solverData->n, solverData->x1, solverData->dy0, lambda, solverData->x);
           assert= 1;
 #ifndef OMC_EMCC
           MMC_TRY_INTERNAL(simulationJumpBuffer)
 #endif
           if (solverData->casualTearingSet){
-            constraintViolated = solverData->f_con(solverData, solverData->x1, solverData->f1);
+            constraintViolated = solverData->f_con(solverData, solverData->x, solverData->f1);
             if (constraintViolated){
               solverData->info = -1;
               break;
             }
           }
           else
-            solverData->f(solverData, solverData->x1, solverData->f1);
+            solverData->f(solverData, solverData->x, solverData->f1);
+
+//          solverData->fJac_f(solverData, solverData->x, solverData->fJac);
+//          get_fScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+          vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
+//          matDivScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+//          vecCopy(solverData->n, solverData->f1, solverData->fJac + solverData->n*solverData->n);
+
+//          debugVectorDouble(LOG_NLS_V,"BB: New damped iteration values", solverData->x, solverData->n);
+//          debugVectorDouble(LOG_NLS_V,"BB: Function scaling values", solverData->fScaling, solverData->n);
+//          debugMatrixDouble(LOG_NLS_V,"BB: Jacobian matrix values", solverData->fJac, solverData->n, solverData->m);
 
           error_f1_sqrd = vec2NormSqrd(solverData->n, solverData->f1);
           debugDouble(LOG_NLS_V,"Need to damp, error_f1 = ", sqrt(error_f1_sqrd));
@@ -1811,18 +1855,15 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
     }
     /* updating x, fvec, error_f_sqrd */
     /* event. swapPointer(&x, &(solverData->x1)); */
-    vecCopy(solverData->n, solverData->x1, x);
+    vecCopy(solverData->n, solverData->x, solverData->x1);
 
     /* Calculate different error measurements */
-    vecDivScaling(solverData->n, solverData->f1, solverData->resScaling, solverData->fvecScaled);
     debugVectorDouble(LOG_NLS_V,"function values:",solverData->f1, n);
-    debugVectorDouble(LOG_NLS_V,"scaled function values:",solverData->fvecScaled, n);
 
     vecDivScaling(solverData->n, solverData->dy0, solverData->xScaling, solverData->dxScaled);
     delta_x_sqrd        = vec2NormSqrd(solverData->n, solverData->dy0);
     delta_x_sqrd_scaled = vec2NormSqrd(solverData->n, solverData->dxScaled);
     error_f_sqrd        = vec2NormSqrd(solverData->n, solverData->f1);
-    error_f_sqrd_scaled = vec2NormSqrd(solverData->n, solverData->fvecScaled);
 
 
     /* debug information */
@@ -1831,7 +1872,6 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
     debugDouble(LOG_NLS_V, "delta_x_scaled =", sqrt(delta_x_sqrd_scaled));
     debugDouble(LOG_NLS_V, "newtonXTol          =", sqrt(solverData->xtol_sqrd));
     debugDouble(LOG_NLS_V, "error_f        =", sqrt(error_f_sqrd));
-    debugDouble(LOG_NLS_V, "error_f_scaled =", sqrt(error_f_sqrd_scaled));
     debugDouble(LOG_NLS_V, "newtonFTol          =", sqrt(solverData->ftol_sqrd));
 
     countNegativeSteps += (error_f_sqrd > 10*error_f_old);
@@ -1861,7 +1901,7 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
     }
 
     /* solution found */
-    if (((error_f_sqrd < solverData->ftol_sqrd) || (error_f_sqrd_scaled < solverData->ftol_sqrd)) && ((delta_x_sqrd_scaled < solverData->xtol_sqrd) || (delta_x_sqrd < solverData->xtol_sqrd)))
+    if ((error_f_sqrd < solverData->ftol_sqrd) && ((delta_x_sqrd_scaled < solverData->xtol_sqrd) || (delta_x_sqrd < solverData->xtol_sqrd)))
     {
       solverData->info = 1;
 
@@ -1900,7 +1940,7 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
     /* check changes in unknown vector */
     if ((delta_x_sqrd < solverData->xtol_sqrd) ||  (delta_x_sqrd_scaled < solverData->xtol_sqrd) || (numberOfSmallSteps > 20))
     {
-      if ((error_f_sqrd < solverData->ftol_sqrd*1e6) || (error_f_sqrd_scaled < solverData->ftol_sqrd*1e6))
+      if (error_f_sqrd < solverData->ftol_sqrd*1e6)
       {
         solverData->info = 1;
 
@@ -1927,7 +1967,18 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
     MMC_TRY_INTERNAL(simulationJumpBuffer)
 #endif
     /* calculate jacobian and function values (both stored in fJac, last column is fvec) */
-    solverData->fJac_f(solverData, x, solverData->fJac);
+
+    solverData->f(solverData, solverData->x, solverData->f1);
+    solverData->fJac_f(solverData, solverData->x, solverData->fJac);
+    get_fScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+    vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
+    matDivScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
+    vecCopy(solverData->n, solverData->f1, solverData->fJac + solverData->n*solverData->n);
+
+    debugVectorDouble(LOG_NLS_V,"BB: Actual iteration values", solverData->x, solverData->n);
+    debugVectorDouble(LOG_NLS_V,"BB: Function scaling values", solverData->fScaling, solverData->n);
+    debugMatrixDouble(LOG_NLS_V,"BB: Jacobian matrix values", solverData->fJac, solverData->n, solverData->m);
+
     assert = 0;
 #ifndef OMC_EMCC
     MMC_CATCH_INTERNAL(simulationJumpBuffer)
@@ -1939,12 +1990,6 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* x)
       debugString(LOG_NLS_V,"UPS! assert when calculating Jacobian!!!");
       break;
     }
-    vecCopy(n, solverData->f1, solverData->fJac + n*n);
-    /* calculate scaling factor of residuals */
-    matVecMultAbsBB(solverData->n, solverData->fJac, solverData->ones, solverData->resScaling);
-    debugVectorDouble(LOG_NLS_JAC, "residuum scaling:", solverData->resScaling, solverData->n);
-    scaleMatrixRows(solverData->n, solverData->m, solverData->fJac);
-    vecCopy(n, solverData->fJac + n*n, solverData->dy0);
   }
   return 0;
 }
@@ -2446,6 +2491,7 @@ int solveHomotopy(DATA *data, threadData_t *threadData, int sysNumber)
         solverData->f(solverData, solverData->x0, solverData->f1);
 
       /* Try to get out of here!!! */
+      vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
       error_f_sqrd        = vec2NormSqrd(solverData->n, solverData->f1);
       if ((error_f_sqrd - solverData->error_f_sqrd)<=0)
       {
@@ -2474,9 +2520,7 @@ int solveHomotopy(DATA *data, threadData_t *threadData, int sysNumber)
         }
       }
       solverData->fJac_f(solverData, solverData->x0, solverData->fJac);
-      /* Determine residual scaling */
-      get_fScaling(solverData->n, (solverData->n)+1, solverData->fJac, solverData->fScaling);
-
+      matDivScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
       vecCopy(solverData->n, solverData->f1, solverData->fJac + solverData->n*solverData->n);
       vecCopy(solverData->n*solverData->m, solverData->fJac, solverData->fJacx0);
       if (mixedSystem)

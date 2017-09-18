@@ -625,9 +625,7 @@ void vecDivScaling(int n, double *a, double *b, double *c)
 {
   int i;
   for (i=0;i<n;i++)
-    //if (fabs(b[i])>0)
-      c[i] = a[i]/fabs(b[i]);
-    // c[i] = a[i]/fmax(1.0,fabs(b[i]));
+    c[i] = (fabs(b[i])>0 ? a[i]/fabs(b[i]):a[i]);
 }
 
 void vecNormalize(int n, double *a, double *b)
@@ -635,7 +633,7 @@ void vecNormalize(int n, double *a, double *b)
   int i;
   double norm = vec2Norm(n,a);
   for (i=0;i<n;i++)
-    b[i] = a[i]/norm;
+    b[i] = (norm>0 ? a[i]/norm:a[i]);
 }
 
 void vecConst(int n, double value, double *a)
@@ -1638,7 +1636,16 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* xx)
   solverData->info = 0;
 
   /* Determine residual scaling and scale right-hand side and Jacobian*/
-  solverData->f(solverData, solverData->x, solverData->f1);
+
+  if (solverData->casualTearingSet){
+    constraintViolated = solverData->f_con(solverData, solverData->x, solverData->f1);
+    if (constraintViolated){
+      solverData->info = -1;
+      return 0;
+    }
+  }
+  else
+    solverData->f(solverData, solverData->x, solverData->f1);  solverData->fJac_f(solverData, solverData->x, solverData->fJac);
   solverData->fJac_f(solverData, solverData->x, solverData->fJac);
   get_fScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
   vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
@@ -1968,7 +1975,16 @@ static int newtonAlgorithmScaled(DATA_HOMOTOPY* solverData, double* xx)
 #endif
     /* calculate jacobian and function values (both stored in fJac, last column is fvec) */
 
-    solverData->f(solverData, solverData->x, solverData->f1);
+    if (solverData->casualTearingSet){
+      constraintViolated = solverData->f_con(solverData, solverData->x, solverData->f1);
+      if (constraintViolated){
+        solverData->info = -1;
+        break;
+      }
+    }
+    else
+      solverData->f(solverData, solverData->x, solverData->f1);
+
     solverData->fJac_f(solverData, solverData->x, solverData->fJac);
     get_fScaling(solverData->n, solverData->m, solverData->fJac, solverData->fScaling);
     vecDivScaling(solverData->n, solverData->f1, solverData->fScaling, solverData->f1);
